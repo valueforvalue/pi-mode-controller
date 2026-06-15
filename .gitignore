@@ -23,3 +23,6 @@ build/
 *.tmp
 *.bak
 *.orig
+
+# Pi config
+.pi/
