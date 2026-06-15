@@ -1,6 +1,17 @@
 # Mode Controller Extension
 
-Provides four operation modes for pi coding agent with token awareness and efficiency features.
+Four operation modes for pi coding agent with token awareness and efficiency features.
+
+## Installation
+
+```bash
+pi install git:github.com:valueforvalue/pi-mode-controller
+```
+
+Or try without installing:
+```bash
+pi -e git:github.com:valueforvalue/pi-mode-controller
+```
 
 ## Modes
 
@@ -19,14 +30,14 @@ Read-only exploration mode for planning before execution.
 Continuous execution until stopped.
 - Tools: All tools enabled
 - Runs continuously without waiting for user input
-- Press `Escape` to stop and get summary
+- Type `stop` to halt and get summary
 
 ### HITL Mode (👁)
 Human-in-the-loop with configurable checkpoints.
 - Tools: All tools enabled
 - Pauses every 2-3 turns for human approval
 - Blocks destructive commands and sensitive file writes
-- User can type "pause" for immediate checkpoint
+- User can type `/pause` for immediate checkpoint
 
 ## Commands
 
@@ -45,21 +56,6 @@ Human-in-the-loop with configurable checkpoints.
 | `/efficient` | Toggle efficient mode |
 | `/pause` | Trigger immediate HITL checkpoint |
 
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| Type `stop` | Stop autopilot |
-| `Escape` | Stop autopilot execution |
-
-## Efficient Mode
-
-When enabled:
-- Shorter system prompts
-- Aggressive compaction hints
-- Restricted verbose tools
-- Auto-enables at 80% context usage
-
 ## Token Tracking
 
 Tracks per session:
@@ -67,6 +63,8 @@ Tracks per session:
 - Estimated cost
 - Context usage percentage
 - Turn count
+
+Auto-enables efficient mode at 80% context usage.
 
 ## Default Blocklist
 
@@ -84,16 +82,3 @@ Sensitive file patterns blocked by default:
 - `*.env`, `*.pem`, `*.key`
 - `*credentials*`, `*secret*`
 - `.git/config`
-
-## Installation
-
-Copy the `mode-controller` folder to:
-- Global: `~/.pi/agent/extensions/`
-- Project: `.pi/extensions/`
-
-Or reference in `settings.json`:
-```json
-{
-  "extensions": [".pi/extensions/mode-controller"]
-}
-```
