@@ -49,7 +49,7 @@ export interface TokenStats {
 
 // Tool configurations per mode
 const YOLO_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const PLANNING_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire"];
+const PLANNING_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire", "grill-me", "grill-me-with-docs"];
 const AUTOPILOT_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 const HITL_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
@@ -181,10 +181,13 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
   // Mode Switching
   // ========================================
 
-  function switchMode(ctx: ExtensionContext, newMode: Mode): void {
+  function switchMode(ctx: ExtensionContext, newMode: Mode, keepAutopilotRunning = false): void {
     state.currentMode = newMode;
     state.hitlTurnCounter = 0;
-    state.autopilotRunning = false;
+    // Only reset autopilotRunning if not explicitly keeping it
+    if (!keepAutopilotRunning) {
+      state.autopilotRunning = false;
+    }
 
     setModeTools(newMode);
     updateModeIndicator(ctx);
@@ -555,9 +558,12 @@ Current progress: Turn ${state.tokenStats.turnsCount}`,
       ]);
 
       if (choice?.startsWith("Execute")) {
-        switchMode(ctx, "autopilot");
-        state.autopilotRunning = true;
-        pi.sendUserMessage("Execute the plan you just created.", { deliverAs: "steer" });
+        // Switch to autopilot mode, keeping autopilotRunning true
+        switchMode(ctx, "autopilot", true);
+        // Queue the execution message for the next turn (defer to avoid timing issues)
+        setTimeout(() => {
+          pi.sendUserMessage("Execute the plan you just created.", { deliverAs: "steer" });
+        }, 100);
       } else if (choice === "Refine the plan") {
         const refinement = await ctx.ui.editor("Refine the plan:", "");
         if (refinement?.trim()) {
