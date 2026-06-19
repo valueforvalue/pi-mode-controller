@@ -29,6 +29,8 @@ export interface ModeState {
   tokenStats: TokenStats;
   efficientMode: boolean;
   efficientBudget: number | null;
+  /** Per-mode tool exclusion lists. Extension tools + builtins are active by default; these are removed. */
+  removeByMode: ModeRemoveState;
 }
 
 export interface HitlRules {
@@ -48,10 +50,39 @@ export interface TokenStats {
 }
 
 // Tool configurations per mode
-const YOLO_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const PLANNING_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire"];
-const AUTOPILOT_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const HITL_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+// Built-in tools that ship with pi. Everything else is an extension tool
+// (e.g. web_search, web_fetch, todo, advisor, Agent, ask_user_question).
+// Each mode declares only the EXTRA tools it removes on top of the full set,
+// so extension tools stay available across all modes by default. Use
+// `/mode add|remove <tool>` to override per session.
+const BUILTIN_TOOLS: ReadonlySet<string> = new Set([
+  "read",
+  "bash",
+  "edit",
+  "write",
+  "grep",
+  "find",
+  "ls",
+]);
+
+const DEFAULT_MODE_REMOVE_TOOLS: Record<Mode, readonly string[]> = {
+  yolo: [],
+  // Planning is read-only-ish: no file modifications. Extension tools stay.
+  planning: ["edit", "write"],
+  autopilot: [],
+  hitl: [],
+};
+
+type ModeRemoveState = Record<Mode, string[]>;
+
+function defaultRemoveState(): ModeRemoveState {
+  return {
+    yolo: [...DEFAULT_MODE_REMOVE_TOOLS.yolo],
+    planning: [...DEFAULT_MODE_REMOVE_TOOLS.planning],
+    autopilot: [...DEFAULT_MODE_REMOVE_TOOLS.autopilot],
+    hitl: [...DEFAULT_MODE_REMOVE_TOOLS.hitl],
+  };
+}
 
 // Default blocklist
 const DEFAULT_BLOCKLIST = [
@@ -132,6 +163,7 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
     },
     efficientMode: false,
     efficientBudget: null,
+    removeByMode: defaultRemoveState(),
   };
 
   // ========================================
@@ -160,20 +192,20 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
   // Tool Configuration
   // ========================================
 
-  function setModeTools(mode: Mode): void {
-    switch (mode) {
-      case "yolo":
-        pi.setActiveTools(YOLO_TOOLS);
-        break;
-      case "planning":
-        pi.setActiveTools(PLANNING_TOOLS);
-        break;
-      case "autopilot":
-        pi.setActiveTools(AUTOPILOT_TOOLS);
-        break;
-      case "hitl":
-        pi.setActiveTools(HITL_TOOLS);
-        break;
+  function setModeTools(mode: Mode, ctx?: ExtensionContext): void {
+    const all = pi.getAllTools();
+    const allNames = all.map((t) => t.name);
+    const remove = new Set(state.removeByMode[mode] ?? []);
+    const active = allNames.filter((n) => !remove.has(n));
+    const removed = allNames.filter((n) => remove.has(n));
+    pi.setActiveTools(active);
+
+    if (ctx?.hasUI && removed.length > 0) {
+      const list = removed.length <= 6 ? removed.join(", ") : `${removed.slice(0, 6).join(", ")} +${removed.length - 6} more`;
+      ctx.ui.notify(
+        `${MODE_INFO[mode].label}: ${removed.length} tool(s) hidden — ${list}. Use /mode show to list, /mode add <tool> to restore.`,
+        "info",
+      );
     }
   }
 
@@ -189,7 +221,7 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
       state.autopilotRunning = false;
     }
 
-    setModeTools(newMode);
+    setModeTools(newMode, ctx);
     updateModeIndicator(ctx);
 
     const info = MODE_INFO[newMode];
@@ -214,6 +246,7 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
       hitlTurnCounter: state.hitlTurnCounter,
       efficientMode: state.efficientMode,
       efficientBudget: state.efficientBudget,
+      removeByMode: state.removeByMode,
     });
   }
 
@@ -229,9 +262,20 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
       if (stateEntry.data.hitlTurnCounter !== undefined) state.hitlTurnCounter = stateEntry.data.hitlTurnCounter;
       if (stateEntry.data.efficientMode !== undefined) state.efficientMode = stateEntry.data.efficientMode;
       if (stateEntry.data.efficientBudget !== undefined) state.efficientBudget = stateEntry.data.efficientBudget;
+      if (stateEntry.data.removeByMode) {
+        // Merge per-mode lists — default for any mode missing from saved state.
+        const saved = stateEntry.data.removeByMode as Partial<ModeRemoveState>;
+        const def = defaultRemoveState();
+        state.removeByMode = {
+          yolo: Array.isArray(saved.yolo) ? saved.yolo : def.yolo,
+          planning: Array.isArray(saved.planning) ? saved.planning : def.planning,
+          autopilot: Array.isArray(saved.autopilot) ? saved.autopilot : def.autopilot,
+          hitl: Array.isArray(saved.hitl) ? saved.hitl : def.hitl,
+        };
+      }
     }
 
-    setModeTools(state.currentMode);
+    setModeTools(state.currentMode, ctx);
     updateModeIndicator(ctx);
   }
 
@@ -241,19 +285,82 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
 
   // Mode switching command
   pi.registerCommand("mode", {
-    description: "Switch between operation modes (yolo, planning, autopilot, hitl)",
-    getArgumentCompletions: () => MODE_ORDER.map((m) => ({ value: m, label: MODE_INFO[m].label })),
+    description: "Switch between operation modes (yolo, planning, autopilot, hitl). Subcommands: show, add <tool>, remove <tool>, reset",
+    getArgumentCompletions: (prefix) => {
+      const base = MODE_ORDER.map((m) => ({ value: m, label: MODE_INFO[m].label }));
+      const subs = ["show", "add", "remove", "reset"];
+      const all = [...base, ...subs.map((s) => ({ value: s, label: s }))];
+      return all.filter((c) => c.value.startsWith(prefix));
+    },
     handler: async (args, ctx) => {
       if (!args || typeof args !== "string") {
         cycleMode(ctx);
         return;
       }
 
-      const targetMode = MODE_ORDER.find((m) => m === (args as string).toLowerCase());
+      const trimmed = args.trim();
+      const parts = trimmed.split(/\s+/);
+      const head = parts[0].toLowerCase();
+      const tail = parts.slice(1).join(" ");
+
+      if (head === "show") {
+        const mode = state.currentMode;
+        const removed = state.removeByMode[mode] ?? [];
+        const active = pi.getActiveTools();
+        const all = pi.getAllTools().map((t) => t.name);
+        const inactiveBuiltins = all.filter((n) => BUILTIN_TOOLS.has(n) && !active.includes(n));
+        const inactiveExtensions = active.length === 0 ? all : all.filter((n) => !active.includes(n) && !BUILTIN_TOOLS.has(n));
+        const msg =
+          `Mode: ${MODE_INFO[mode].label}\n` +
+          `Active: ${active.length} tool(s)\n` +
+          `Hidden: ${removed.length} (${removed.length === 0 ? "none" : removed.join(", ")})\n` +
+          (inactiveBuiltins.length > 0 ? `Inactive builtins: ${inactiveBuiltins.join(", ")}\n` : "") +
+          (inactiveExtensions.length > 0 ? `Inactive extensions: ${inactiveExtensions.join(", ")}\n` : "") +
+          `Use /mode add <tool> / /mode remove <tool> / /mode reset`;
+        ctx.ui.notify(msg, "info");
+        return;
+      }
+
+      if (head === "add" || head === "remove") {
+        if (!tail) {
+          ctx.ui.notify(`Usage: /mode ${head} <tool-name>`, "warning");
+          return;
+        }
+        const list = state.removeByMode[state.currentMode] ?? [];
+        if (head === "add") {
+          const next = list.filter((n) => n !== tail);
+          if (next.length === list.length) {
+            ctx.ui.notify(`Already active: ${tail}`, "info");
+            return;
+          }
+          state.removeByMode[state.currentMode] = next;
+          ctx.ui.notify(`Restored ${tail} in ${MODE_INFO[state.currentMode].label}`, "info");
+        } else {
+          if (list.includes(tail)) {
+            ctx.ui.notify(`Already hidden: ${tail}`, "info");
+            return;
+          }
+          state.removeByMode[state.currentMode] = [...list, tail];
+          ctx.ui.notify(`Hidden ${tail} in ${MODE_INFO[state.currentMode].label}`, "info");
+        }
+        setModeTools(state.currentMode, ctx);
+        persistState();
+        return;
+      }
+
+      if (head === "reset") {
+        state.removeByMode = defaultRemoveState();
+        setModeTools(state.currentMode, ctx);
+        persistState();
+        ctx.ui.notify(`Reset hidden-tool lists to defaults`, "info");
+        return;
+      }
+
+      const targetMode = MODE_ORDER.find((m) => m === head);
       if (targetMode) {
         switchMode(ctx, targetMode);
       } else {
-        ctx.ui.notify(`Unknown mode: ${args}. Use: ${MODE_ORDER.join(", ")}`, "error");
+        ctx.ui.notify(`Unknown subcommand or mode: ${head}. Use: ${MODE_ORDER.join(", ")}, show, add, remove, reset`, "error");
       }
     },
   });
