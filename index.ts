@@ -49,7 +49,7 @@ export interface TokenStats {
 
 // Tool configurations per mode
 const YOLO_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
-const PLANNING_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire", "grill-me", "grill-me-with-docs"];
+const PLANNING_TOOLS = ["read", "bash", "grep", "find", "ls", "questionnaire"];
 const AUTOPILOT_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 const HITL_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
@@ -447,21 +447,19 @@ export default function modeControllerExtension(pi: ExtensionAPI): void {
         messages.push({
           customType: "mode-context",
           content: `[PLANNING MODE ACTIVE]
-You are in planning mode - a read-only exploration mode for safe code analysis.
+You are in a read-only exploration mode. Edit and write tools are disabled.
 
-Restrictions:
-- You can only use: read, bash (safe commands), grep, find, ls, questionnaire
-- You CANNOT use: edit, write (file modifications are disabled)
-- Bash is restricted to read-only commands
+Tools available: read, bash (read-only commands), grep, find, ls, questionnaire
+Tools blocked: edit, write (file modifications)
 
-Create a detailed numbered plan under a "Plan:" header. Use /grill-me or /grill-me-with-docs to refine the plan through questioning.
+To start a structured plan, run /ask-matt. It routes to the right skill:
+- /grill-with-docs - interview (you have a codebase)
+- /grill-me - interview (no codebase)
+- /prototype - test an idea in throwaway code
+- /to-prd, /to-issues - publish to the issue tracker
+- /implement is blocked in this mode - switch to /yolo or /hitl to execute
 
-Plan:
-1. First step description
-2. Second step description
-...
-
-Do NOT attempt to make changes - just describe what you would do.`,
+Or describe the problem here and explore the codebase with read/grep/find/ls before committing to a plan. If you produce a plan, write it under a "Plan:" header. Do NOT attempt to make changes.`,
           display: false,
         });
         break;

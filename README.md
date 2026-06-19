@@ -23,8 +23,8 @@ Default mode. Executes all commands immediately without confirmation.
 ### Planning Mode (📋)
 Read-only exploration mode for planning before execution.
 - Tools: read, bash (safe commands only), grep, find, ls, questionnaire
-- Creates numbered plans from "Plan:" sections
-- Integrates `/grill-me` and `/grill-me-with-docs` skills
+- Edit/write tools are physically blocked
+- Points at `/ask-matt` to route to the right slash skill for the situation (interview, prototype, PRD, etc.)
 
 ### Autopilot Mode (🚀)
 Continuous execution until stopped.
