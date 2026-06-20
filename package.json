@@ -1,14 +1,36 @@
 {
   "name": "pi-mode-controller",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Four operation modes for pi: YOLO, Planning, Autopilot, and Human-in-the-Loop",
-  "keywords": ["pi-package", "pi-extension"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "mode",
+    "yolo",
+    "planning",
+    "autopilot",
+    "hitl"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/valueforvalue/pi-mode-controller.git"
+  },
+  "bugs": {
+    "url": "https://github.com/valueforvalue/pi-mode-controller/issues"
+  },
+  "homepage": "https://github.com/valueforvalue/pi-mode-controller#readme",
+  "files": [
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "pi": {
     "extensions": ["./index.ts"]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
+    "@earendil-works/pi-coding-agent": "*"
   }
 }
+

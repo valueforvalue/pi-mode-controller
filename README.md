@@ -4,14 +4,27 @@ Four operation modes for pi coding agent with token awareness and efficiency fea
 
 ## Installation
 
+Install from git (pinned to master):
+
 ```bash
-pi install git:github.com:valueforvalue/pi-mode-controller
+pi install "git:github.com:valueforvalue/pi-mode-controller@master"
 ```
 
-Or try without installing:
+Install from npm once published:
+
 ```bash
-pi -e git:github.com:valueforvalue/pi-mode-controller
+pi install npm:pi-mode-controller
 ```
+
+Try without installing (loads from git on each run):
+
+```bash
+pi -e "git:github.com:valueforvalue/pi-mode-controller@master"
+```
+
+> **Windows note:** quote the install argument. PowerShell and cmd otherwise
+> misinterpret the `git:` prefix as a drive letter and the colons inside the
+> URL as path separators, which silently breaks the install.
 
 ## Modes
 
